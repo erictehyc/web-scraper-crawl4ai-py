@@ -193,19 +193,20 @@ async def main():
         if all_items:
 
             # Save results to JSON (include status_code, error_message, etc.)
-            with open("results.json", "w", encoding="utf-8") as f:
+            with open(f"result-{datetime.now().strftime('%Y%m%d_%H%M%S')}.json", "w", encoding="utf-8") as f:
                 json.dump(all_results, f, indent=4, ensure_ascii=False)
             print(f"Saved {len(all_results)} results to results.json")
 
             # Save data to JSON
             processed_json = process_json_data(all_items, BASE_URL)
-            with open("output.json", "w", encoding="utf-8") as f:
+            with open(f"output-{datetime.now().strftime('%Y%m%d_%H%M%S')}.json", "w", encoding="utf-8") as f:
                 json.dump(processed_json, f, indent=4, ensure_ascii=False)
             print(f"Saved {len(processed_json)} items to output.json")
 
             # convert to csv
             df = pd.DataFrame(processed_json)
-            df.to_csv("output.csv", index=False)
+            df.to_csv(
+                f"output-{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv", index=False)
             print(f"Saved {len(processed_json)} items to output.csv")
 
         else:
