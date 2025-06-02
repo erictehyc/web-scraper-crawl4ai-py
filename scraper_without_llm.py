@@ -11,14 +11,42 @@ from crawl4ai import (
     DefaultMarkdownGenerator,
     PruningContentFilter,
     CrawlResult,
-    LLMExtractionStrategy,
-    LLMConfig,
-    RateLimiter,
+    JsonXPathExtractionStrategy,
 )
 import os
 from dotenv import load_dotenv
 from models.JobModel import JobModel
+from models.xpath_schema import job_listing_schema
+from datetime import datetime, timedelta
 load_dotenv()
+
+
+def process_json_data(data, base_url):
+    # Process the JSON data as needed
+
+    for item in data:
+        # prepend base URL to job URLs
+        if 'jobUrl' in item and item['jobUrl']:
+            item['jobUrl'] = f"{base_url}{item['jobUrl']}"
+        # Convert days ago (3d) to a date format
+        if 'dateListed' in item and item['dateListed']:
+            try:
+                now = datetime.now()
+                relative_str = item['dateListed'].strip().lower()
+                if "d ago" in relative_str:
+                    days = int(relative_str.replace("d ago", "").strip())
+                    date = now - timedelta(days=days)
+                elif "h ago" in relative_str:
+                    hours = int(relative_str.replace("h ago", "").strip())
+                    date = now - timedelta(hours=hours)
+                else:
+                    # fallback: return today
+                    date = now
+                item['dateListed'] = date.strftime("%d/%m/%Y")
+            except ValueError:
+                item['dateListed'] = None
+
+    return data
 
 
 async def main():
@@ -26,7 +54,7 @@ async def main():
     BASE_URL = "https://my.jobstreet.com"
     OCCUPATION = 'developer'
     LOCATION = 'kuala-lumpur'
-    SALARY_RANGE = '10000-15000'
+    SALARY_RANGE = '12000-15000'
     SALARY_TYPE = 'monthly'  # monthly or annually
     DATE_RANGE = '4'  # last posted x days ago
 
@@ -59,8 +87,7 @@ async def main():
         "password": os.getenv("PROXY_PASSWORD")
     }
 
-    # https://github.com/unclecode/crawl4ai/issues/993
-
+    # Solve Proxy issue - https://github.com/unclecode/crawl4ai/issues/993
     proxy_config = ProxyConfig(
         server=proxy_info["server"], username=proxy_info["username"], password=proxy_info["password"])
 
@@ -69,14 +96,6 @@ async def main():
         verbose=True,
         # proxy=proxy,
         proxy_config=proxy_config,
-    )
-
-    # Create a RateLimiter with custom settings
-    rate_limiter = RateLimiter(
-        base_delay=(30.0, 60.0),  # Random delay between 30-60 seconds
-        max_delay=60.0,         # Cap delay at 30 seconds
-        max_retries=2,          # Retry up to 5 times on rate-limiting errors
-        rate_limit_codes=[429, 503]  # Handle these HTTP status codes
     )
 
     # # Run the crawler on a URL
@@ -108,23 +127,9 @@ async def main():
 
         ######## ----------- JSON crawler ----------- ####
 
-        # LLM Extraction Strategy refer to https://docs.crawl4ai.com/extraction/llm-strategies/
-        extraction_strategy = LLMExtractionStrategy(
-            llm_config=LLMConfig(
-                provider=os.getenv("LLM_MODEL"),  # type: ignore
-                api_token=os.getenv("LLM_API_TOKEN"),
-            ),
-            overlap_rate=0.1,
-            chunk_token_threshold=5000,
-            apply_chunking=True,
-
-            extraction_type="schema",
-            schema=JobModel.model_json_schema(),
-            instruction="Extract objects with 'job_id', 'job_title', 'company', 'expected_salary', 'location', 'short_description', 'listed_on' and 'link' from the job posting. 'listed_on' should be transformed from 'X days from' to a date string in the format 'DD-MM-YYYY', calculated based from today's date.",
-            # html / markdown / fit_markdown (from PruningContentFilter)
-            input_format="fit_markdown",
-            verbose=True
-        )
+        # refer to https://docs.crawl4ai.com/extraction/no-llm-strategies/
+        extraction_strategy = JsonXPathExtractionStrategy(
+            job_listing_schema, verbose=True)
 
         crawler_config = CrawlerRunConfig(
             # cache_mode=CacheMod.BYPASS,
@@ -135,15 +140,6 @@ async def main():
             css_selector="article[data-testid='job-card']",
             extraction_strategy=extraction_strategy,
         )
-
-        # rate_limiter = RateLimiter(
-        #     base_delay=(30.0, 60.0),  # Random delay between 30-60 seconds
-        #     max_delay=60.0,         # Cap delay at 60 seconds
-        #     max_retries=2,          # Retry up to 2 times on rate-limiting errors
-        #     rate_limit_codes=[429, 503]  # Handle these HTTP status codes
-        # )
-
-        print(f"Using LLM Model: {os.getenv('LLM_MODEL')}")
 
         all_items = []
         all_results = []
@@ -160,7 +156,7 @@ async def main():
                     # dispatcher=rate_limiter,  # Use the rate limiter
                 )  # type: ignore
 
-                # remove html from result just to keep the output clean
+                # remove html from result
                 result_dict = result.model_dump()
                 # for key in ["html", "cleaned_html", "fit_html"]:
                 #     result_dict.pop(key, None)
@@ -178,7 +174,7 @@ async def main():
                     print(f"Successfully crawled page {page}.")
                     # The extracted content is = JSON
                     data = json.loads(result.extracted_content or "[]")
-                    print("Extracted items:", data)
+                    # print("Extracted items:", data)
                     if not data:
                         print(f"No more data found on page {page}. Stopping.")
                         break
@@ -195,23 +191,23 @@ async def main():
 
         # Save to JSON once completed
         if all_items:
-            # Save results to JSON
+
+            # Save results to JSON (include status_code, error_message, etc.)
             with open("results.json", "w", encoding="utf-8") as f:
                 json.dump(all_results, f, indent=4, ensure_ascii=False)
             print(f"Saved {len(all_results)} results to results.json")
 
+            # Save data to JSON
+            processed_json = process_json_data(all_items, BASE_URL)
             with open("output.json", "w", encoding="utf-8") as f:
-                json.dump(all_items, f, indent=4, ensure_ascii=False)
-            print(f"Saved {len(all_items)} items to output.json")
+                json.dump(processed_json, f, indent=4, ensure_ascii=False)
+            print(f"Saved {len(processed_json)} items to output.json")
 
             # convert to csv
-            df = pd.DataFrame(all_items)
+            df = pd.DataFrame(processed_json)
             df.to_csv("output.csv", index=False)
-            print(f"Saved {len(all_items)} items to output.csv")
+            print(f"Saved {len(processed_json)} items to output.csv")
 
-            # 6. Show LLM usage stats
-            print("LLM Usage Stats:")
-            extraction_strategy.show_usage()  # prints token usage
         else:
             print("No items extracted.")
 
