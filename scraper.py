@@ -6,117 +6,33 @@ import asyncio
 from crawl4ai import (
     AsyncWebCrawler,
     BrowserConfig,
+    ProxyConfig,
     CrawlerRunConfig,
     DefaultMarkdownGenerator,
     PruningContentFilter,
     CrawlResult,
     LLMExtractionStrategy,
     LLMConfig,
+    RateLimiter,
 )
 import os
 from dotenv import load_dotenv
-
+from models.JobModel import JobModel
 load_dotenv()
-
-
-# async def crawl_job_postings(crawler: AsyncWebCrawler, url: str):
-#     """
-#     Crawl job postings from the given URL using the provided crawler.
-
-#     Args:
-#         crawler (AsyncWebCrawler): The web crawler instance.
-#         url (str): The URL to crawl for job postings.
-
-#     Returns:
-#         list: A list of job postings extracted from the page.
-#     """
-#     # State Variables for pagination
-#     page_number = 1
-#     all_jobs = []
-#     seen_job_ids = set()
-
-#     # Proxy configuration
-#     proxy_config = {
-#         "server": os.getenv("PROXY_SERVER"),
-#         "username": os.getenv("PROXY_USERNAME"),
-#         "password": os.getenv("PROXY_PASSWORD")
-#     }
-
-#     browser_config = BrowserConfig(
-#         browser_type="chromium",
-#         headless=False,
-#         verbose=True,
-#         proxy_config=proxy_config
-#     )
-
-#     # Start the web crawling process
-#     async with AsyncWebCrawler(config=browser_config) as crawler:
-#         while True:
-#             # Construct the URL for the current page
-#             current_url = f"{url}&page={page_number}"
-#             print(f"Crawling page {page_number}: {current_url}")
-
-#             # Run the crawler on the current URL
-#             result: CrawlResult = await crawler.arun(
-#                 url=current_url,
-#                 config=CrawlerRunConfig(
-#                     markdown_generator=DefaultMarkdownGenerator(
-#                         content_filter=PruningContentFilter()
-#                     ),
-#                     extraction_strategy=os.getenv("LLM_MODEL"),
-#                     css_selector="article[data-testid='job-card']",
-#             )  # type: ignore
-
-#             if not result.success:
-#                 print(
-#                     f"Failed to crawl page {page_number}: {result.error_message}")
-#                 return [], False
-
-#             extracted_data=json.loads(result.extracted_content or "{}")
-#             if not extracted_data:
-#                 print(f"No data extracted from page {page_number}")
-#                 return [], False
-
-#             # Check if the result contains job postings
-
-#             print(f"Successfully crawled page {page_number}")
-
-#             # Extract job postings from the result
-#             jobs=result.extracted_content.get("jobs", [])
-
-#             if not jobs:
-#                 print("No more jobs found, stopping.")
-#                 break
-
-#             # Filter out duplicate jobs based on job_id
-#             new_jobs=[job for job in jobs if job["job_id"]
-#                         not in seen_job_ids]
-#             all_jobs.extend(new_jobs)
-
-#             # Update seen job IDs
-#             seen_job_ids.update(job["job_id"] for job in new_jobs)
-
-#             # Increment page number for next iteration
-#             page_number += 1
-
-#             # Check if we have reached the end of the job postings
-#             if len(new_jobs) < 10:  # Assuming less than 10 jobs means no more pages
-#                 print("Less than 10 jobs found, stopping.")
-#                 break
-#     # Return all collected job postings
-
-#     return all_jobs, True
 
 
 async def main():
 
-    OCCUPATION = 'farm'
-    LOCATION = 'victoria'
-    SALARY_RANGE = '1000-2000'
+    OCCUPATION = 'developer'
+    LOCATION = 'kuala-lumpur'
+    SALARY_RANGE = '9000-15000'
+    SALARY_TYPE = 'monthly'  # monthly or annually
+    DATE_RANGE = '5'  # last posted x days ago
 
     # # Set up proxy configuration
-    print(os.getenv("PROXY_SERVER"))
     proxy = f"http://{os.getenv('PROXY_USERNAME')}:{os.getenv('PROXY_PASSWORD')}@{os.getenv('PROXY_SERVER')}"
+    print(proxy)
+
     # url = 'https://ip.decodo.com/json'
     # proxies = {
     #     'http': proxy,
@@ -135,17 +51,31 @@ async def main():
 
     # Create an instance of AsyncWebCrawler
     # async with AsyncWebCrawler() as crawler:
-    proxy_config = {
-        "server": 'http://gate.decodo.com:10001',
+
+    proxy_info = {
+        "server": 'https://gate.decodo.com:10001',
         "username": os.getenv("PROXY_USERNAME"),
         "password": os.getenv("PROXY_PASSWORD")
     }
+
+    # https://github.com/unclecode/crawl4ai/issues/993
+
+    proxy_config = ProxyConfig(
+        server=proxy_info["server"], username=proxy_info["username"], password=proxy_info["password"])
 
     browser_config = BrowserConfig(
         headless=False,
         verbose=True,
         # proxy=proxy,
-        # proxy_config=proxy_config,
+        proxy_config=proxy_config,
+    )
+
+    # Create a RateLimiter with custom settings
+    rate_limiter = RateLimiter(
+        base_delay=(30.0, 60.0),  # Random delay between 30-60 seconds
+        max_delay=60.0,         # Cap delay at 30 seconds
+        max_retries=2,          # Retry up to 5 times on rate-limiting errors
+        rate_limit_codes=[429, 503]  # Handle these HTTP status codes
     )
 
     # # Run the crawler on a URL
@@ -183,14 +113,15 @@ async def main():
                 provider=os.getenv("LLM_MODEL"),  # type: ignore
                 api_token=os.getenv("LLM_API_TOKEN"),
             ),
-            # overlap_rate=0.06,
-            # chunk_token_threshold=2000,
-            # apply_chunking=True,
+            overlap_rate=0.1,
+            chunk_token_threshold=5000,
+            apply_chunking=True,
 
             extraction_type="schema",
-            # schema="{job_id: str, job_title: str, company: str, expected_salary: str, location: str, short_description: str, link: str}",
+            schema=JobModel.model_json_schema(),
             instruction="Extract objects with 'job_id', 'job_title', 'company', 'expected_salary', 'location', 'short_description', 'listed_on' and 'link' from the job posting. 'listed_on' should be transformed from 'X days from' to a date string in the format 'DD-MM-YYYY', calculated based from today's date.",
-            input_format="markdown",
+            # html / markdown / fit_markdown (from PruningContentFilter)
+            input_format="fit_markdown",
             verbose=True
         )
 
@@ -204,38 +135,71 @@ async def main():
             extraction_strategy=extraction_strategy,
         )
 
+        rate_limiter = RateLimiter(
+            base_delay=(30.0, 60.0),  # Random delay between 30-60 seconds
+            max_delay=60.0,         # Cap delay at 60 seconds
+            max_retries=2,          # Retry up to 2 times on rate-limiting errors
+            rate_limit_codes=[429, 503]  # Handle these HTTP status codes
+        )
+
         print(f"Using LLM Model: {os.getenv('LLM_MODEL')}")
 
-        # return json content from the crawler
-        result: CrawlResult = await crawler.arun(
-            url=f"https://my.jobstreet.com/{OCCUPATION}-jobs/in-{LOCATION}?salaryrange={SALARY_RANGE}&salarytype=monthly",
-            # url="https://my.jobstreet.com/react-developer-jobs/in-Kuala-Lumpur?daterange=7&jobId=84480077&type=standard",
-            config=crawler_config
-        )  # type: ignore
+        all_items = []
+        page = 1
+        while True:
 
-        # print result
+            paged_url = f"https://my.jobstreet.com/{OCCUPATION}-jobs/in-{LOCATION}?salaryrange={SALARY_RANGE}&salarytype={SALARY_TYPE}&daterange={DATE_RANGE}&page={page}"
 
-        if result.success:
-            # The extracted content is = JSON
-            data = json.loads(result.extracted_content or "[]")
-            print("Extracted items:", data)
+            try:
+                # return json content from the crawler
+                result: CrawlResult = await crawler.arun(
+                    url=paged_url,
+                    config=crawler_config,
+                    # dispatcher=rate_limiter,  # Use the rate limiter
+                )  # type: ignore
 
-            # Save to JSON
+                print(f"Crawled page {page} with result: {result}")
+                if result.success is False:
+                    print(
+                        f"Failed to crawl page {page}: {result.error_message}")
+                    break
+                elif result.extracted_content is None:
+                    print(f"No extracted content on page {page}. Stopping.")
+                    break
+                else:
+                    print(f"Successfully crawled page {page}.")
+                    # The extracted content is = JSON
+                    data = json.loads(result.extracted_content or "[]")
+                    print("Extracted items:", data)
+                    if not data:
+                        print(f"No more data found on page {page}. Stopping.")
+                        break
+
+                    all_items.extend(data)
+                    print(f"Page {page} extracted {len(data)} items.")
+                    page += 1
+
+            # Example of errors - rate limit exceeded, no more data, etc.
+            except Exception as e:
+                print(f"Error on page {page}: {e}")
+                break
+
+        # Save to JSON once completed
+        if all_items:
             with open("output.json", "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=4)
-
-            print(f"Saved {len(data)} items to output.json")
+                json.dump(all_items, f, indent=4, ensure_ascii=False)
+            print(f"Saved {len(all_items)} items to output.json")
 
             # convert to csv
-            df = pd.DataFrame(data)
+            df = pd.DataFrame(all_items)
             df.to_csv("output.csv", index=False)
-            print(f"Saved {len(data)} items to output.csv")
+            print(f"Saved {len(all_items)} items to output.csv")
 
             # 6. Show LLM usage stats
             print("LLM Usage Stats:")
             extraction_strategy.show_usage()  # prints token usage
         else:
-            print("Error:", result.error_message)
+            print("No items extracted.")
 
     #     # # Print the number of results
     #     # print(f"Number of results: {len(results)}")

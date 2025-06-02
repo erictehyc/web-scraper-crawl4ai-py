@@ -3,9 +3,7 @@ from pydantic import BaseModel
 import os
 from crawl4ai import CrawlerRunConfig, CacheMode, DefaultMarkdownGenerator, PruningContentFilter
 
-
-class JobCrawlerModel(BaseModel):
-    """
+"""
     Represents the data extracted from a job posting.
     This model is used to define the structure of the data that will be extracted
     from the job postings using AI-powered extraction strategies.
@@ -15,7 +13,10 @@ class JobCrawlerModel(BaseModel):
 
     Args:
         BaseModel (_type_): _description_
-    """
+"""
+
+
+class JobModel(BaseModel):
 
     job_id: str
     job_title: str
@@ -23,10 +24,11 @@ class JobCrawlerModel(BaseModel):
     expected_salary: str
     location: str
     short_description: str
+    listed_on: str
     link: str
 
-    extraction_strategy: LLMExtractionStrategy
-    crawler_config: CrawlerRunConfig
+    # extraction_strategy: LLMExtractionStrategy
+    # crawler_config: CrawlerRunConfig
 
     # Use DeepSeek for AI Parsing
     # Modify scraper.py to include AI-powered extraction:
