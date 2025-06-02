@@ -12,7 +12,7 @@ def job():
 
 if __name__ == "__main__":
     # Schedule the job to run every 5 seconds
-    schedule.every(1).minute.do(job)
+    schedule.every(3).minute.do(job)
 
     print("Scheduler started. Press Ctrl+C to stop.")
 
