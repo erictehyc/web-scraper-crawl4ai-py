@@ -12,14 +12,14 @@ def job():
 
 if __name__ == "__main__":
     # Schedule the job to run every 5 seconds
-    schedule.every(3).minute.do(job)
+    schedule.every(1).day.do(job)
 
     print("Scheduler started. Press Ctrl+C to stop.")
 
     try:
         while True:
             schedule.run_pending()
-            # Sleep for a short time to avoid busy waiting
-            time.sleep(50)
+            # Sleep for 23 hours and 50 minutes to avoid running the job too frequently
+            time.sleep(60 * 60 * 23 + 60 * 50)
     except KeyboardInterrupt:
         print("Scheduler stopped.")

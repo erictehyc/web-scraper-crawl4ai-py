@@ -18,6 +18,7 @@ from crawl4ai import (
 import os
 from dotenv import load_dotenv
 from models.JobModel import JobModel
+from helper.send_email import send_email
 load_dotenv()
 
 
@@ -212,6 +213,10 @@ async def main():
             # 6. Show LLM usage stats
             print("LLM Usage Stats:")
             extraction_strategy.show_usage()  # prints token usage
+
+            if os.getenv("SEND_EMAIL") == "True":
+                print("Sending email with results...")
+                send_email(filename=f"output.csv")
         else:
             print("No items extracted.")
 

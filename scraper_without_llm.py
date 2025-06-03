@@ -18,7 +18,15 @@ from dotenv import load_dotenv
 from models.JobModel import JobModel
 from models.xpath_schema import job_listing_schema
 from datetime import datetime, timedelta
+from helper.send_email import send_email
 load_dotenv()
+
+BASE_URL = "https://my.jobstreet.com"
+OCCUPATION = 'react-developer'
+LOCATION = 'singapore'
+SALARY_RANGE = '0-15000'
+SALARY_TYPE = 'monthly'  # monthly or annually
+DATE_RANGE = '3'  # last posted x days ago
 
 
 def process_json_data(data, base_url):
@@ -50,13 +58,6 @@ def process_json_data(data, base_url):
 
 
 async def main():
-
-    BASE_URL = "https://my.jobstreet.com"
-    OCCUPATION = 'developer'
-    LOCATION = 'kuala-lumpur'
-    SALARY_RANGE = '12000-15000'
-    SALARY_TYPE = 'monthly'  # monthly or annually
-    DATE_RANGE = '4'  # last posted x days ago
 
     # # Set up proxy configuration
     proxy = f"http://{os.getenv('PROXY_USERNAME')}:{os.getenv('PROXY_PASSWORD')}@{os.getenv('PROXY_SERVER')}"
@@ -192,22 +193,29 @@ async def main():
         # Save to JSON once completed
         if all_items:
 
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            print(f"Processing completed at {now}. Saving results...")
             # Save results to JSON (include status_code, error_message, etc.)
-            with open(f"result-{datetime.now().strftime('%Y%m%d_%H%M%S')}.json", "w", encoding="utf-8") as f:
+            with open(f"result-{now}.json", "w", encoding="utf-8") as f:
                 json.dump(all_results, f, indent=4, ensure_ascii=False)
             print(f"Saved {len(all_results)} results to results.json")
 
             # Save data to JSON
             processed_json = process_json_data(all_items, BASE_URL)
-            with open(f"output-{datetime.now().strftime('%Y%m%d_%H%M%S')}.json", "w", encoding="utf-8") as f:
+            with open(f"output-{now}.json", "w", encoding="utf-8") as f:
                 json.dump(processed_json, f, indent=4, ensure_ascii=False)
             print(f"Saved {len(processed_json)} items to output.json")
 
             # convert to csv
             df = pd.DataFrame(processed_json)
             df.to_csv(
-                f"output-{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv", index=False)
+                f"output-{now}.csv", index=False)
             print(f"Saved {len(processed_json)} items to output.csv")
+
+            # send email (csv file)
+            if os.getenv("SEND_EMAIL") == "True":
+                print("Sending email with results...")
+                send_email(filename=f"output-{now}.csv")
 
         else:
             print("No items extracted.")

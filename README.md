@@ -39,6 +39,37 @@ To set up proxies with Decodo, follow these steps:
 4. **Test the Proxy**:
    - You can test the proxy setup by running a simple Python script to ensure it connects through the proxy as detailed in Decodo's documentation.
 
+## Set up Gmail App Password for Email Notifications (Optional)
+
+If you choose to enable email notifications for job listings, you will need to set up a Gmail App Password. This is necessary because Gmail requires app passwords for applications that do not support OAuth 2.0.
+
+If you want to **skip email notifications**, you can ignore this section, in which case change the `SEND_EMAIL` variable in the `.env` file to `False`:
+
+Refer to [this video](https://www.youtube.com/watch?v=Sddnn6dpqk0&ab_channel=TheIntriguedEngineer) for a detailed guide on using Python with Email.
+
+To set up Gmail App Password for email notifications, follow these steps:
+
+1. **Enable 2-Step Verification**:
+   - Go to your Google Account settings.
+   - Navigate to "Security" and enable 2-Step Verification.
+2. **Create an App Password**:
+   - In the "Security" section, find "App passwords".
+   - Select "Mail" as the app and "Other (Custom name)" for the device.
+   - Enter a name (e.g., "Crawl4AI Scraper") and click "Generate".
+   - Copy the generated app password.
+   - Add the App Password to your `.env` file:
+     ```
+     EMAIL_SENDER=youremail@gmail.com
+     EMAIL_SENDER_APP_PASSWORD=your_app_password_here
+     ```
+3. **Set up Email Configuration**:
+   - In your `.env` file, add the following lines:
+     ```
+     EMAIL_SMTP_HOST=smtp.gmail.com
+     EMAIL_SMTP_PORT=587
+     EMAIL_RECEIVER=yourReceiverEmail@mail.com
+     ```
+
 ## Running Jobstreet Web Scraper
 
 To run the Jobstreet web scraper using Crawl4AI, follow these steps:
@@ -49,8 +80,8 @@ To run the Jobstreet web scraper using Crawl4AI, follow these steps:
    python scraper.py
    ```
 
-   However, this method is slower and may not be as efficient as using non-LLM-based scraping.
-   It will also be limited by the Groq API rate limits.
+However, this method is slower and may not be as efficient as using non-LLM-based scraping.
+It will also be limited by the Groq API rate limits.
 
 2. If you want to use non LLM-based scraping (recommended for faster results) which uses XPath selector, run:
    ```bash
@@ -74,8 +105,9 @@ To run the Jobstreet web scraper using Crawl4AI, follow these steps:
 
 ## References
 
-[Crawl4AI YT](https://www.youtube.com/watch?v=xo3qK6Hg9AA&t=1487s&ab_channel=Unclecode)  
-[Crawl4AI Docs](https://docs.crawl4ai.com/blog/releases/0.6.0/#2-native-table-extraction)  
-[Medium Article using Crawl4AI + Groq](https://medium.com/@datajournal/ai-scraper-with-crawl4ai-and-deepseek-94f1e66a14d0)  
-[AI with Brandon Hancock - Crawl4AI + Groq](https://www.youtube.com/watch?v=Osl4NgAXvRk&ab_channel=aiwithbrandon)  
-[Jan Marshal - Setting up Proxies with Decodo](https://www.youtube.com/watch?v=_rI7IDEGMvk&ab_channel=JanMarshal)
+- [Crawl4AI YT](https://www.youtube.com/watch?v=xo3qK6Hg9AA&t=1487s&ab_channel=Unclecode)
+- [Crawl4AI Docs](https://docs.crawl4ai.com/blog/releases/0.6.0/#2-native-table-extraction)
+- [Medium Article using Crawl4AI + Groq](https://medium.com/@datajournal/ai-scraper-with-crawl4ai-and-deepseek-94f1e66a14d0)
+- [AI with Brandon Hancock - Crawl4AI + Groq](https://www.youtube.com/watch?v=Osl4NgAXvRk&ab_channel=aiwithbrandon)
+- [Jan Marshal - Setting up Proxies with Decodo](https://www.youtube.com/watch?v=_rI7IDEGMvk&ab_channel=JanMarshal)
+- [Using Email with Python](https://www.youtube.com/watch?v=Sddnn6dpqk0&ab_channel=TheIntriguedEngineer)
