@@ -61,7 +61,7 @@ def send_email(filename='output.csv'):
         with smtplib.SMTP(os.getenv("EMAIL_SMTP_HOST"), os.getenv("EMAIL_SMTP_PORT")) as server:
             server.starttls()  # Upgrade the connection to a secure encrypted SSL/TLS connection
             server.login(os.getenv("EMAIL_SENDER"),
-                         os.getenv("EMAIL_SENDER_PASSWORD"))
+                         os.getenv("EMAIL_SENDER_APP_PASSWORD"))
             print("Logged in to email server successfully.")
             server.sendmail(msg["From"], msg["To"], msg.as_string())
             print("Email sent successfully.")
